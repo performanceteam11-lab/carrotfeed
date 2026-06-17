@@ -2,6 +2,7 @@ import json
 import time
 import re
 import csv
+from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 
@@ -91,10 +92,11 @@ def main():
         price = prices.get(p["id"])
         if not price:
             continue
+        num_id = re.search(r"/products/(\d+)", p["link"])
         rows.append({
-            "id": p["id"],
+            "id": num_id.group(1) if num_id else p["id"],
             "title": p["title"],
-            "brand": p["brand"],
+            "brand": "샤크닌자",
             "image_link": p["image_link"],
             "link": p["link"],
             "price_pc": price,
@@ -104,7 +106,7 @@ def main():
 
     fieldnames = ["id", "title", "brand", "image_link", "link", "price_pc",
                   "category_name1", "category_name2"]
-    with open("sharkninja_feed.csv", "w", newline="", encoding="utf-8-sig") as f:
+    with open("sharkninja_feed.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
