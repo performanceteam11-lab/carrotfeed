@@ -9,11 +9,23 @@ from playwright.sync_api import sync_playwright
 def get_all_prices(products):
     results = {}
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+            ]
+        )
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             locale="ko-KR",
+            viewport={"width": 1280, "height": 800},
+            extra_http_headers={"Accept-Language": "ko-KR,ko;q=0.9"},
         )
+        # 봇 감지 우회
+        context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         page = context.new_page()
 
         for prod in products:
@@ -81,20 +93,37 @@ def get_all_prices(products):
     return results
 
 
+def load_existing_prices():
+    try:
+        existing = {}
+        with open("sharkninja_feed.csv", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                existing[row["id"]] = int(row["price_pc"])
+        return existing
+    except Exception:
+        return {}
+
+
 def main():
     with open("products.json", encoding="utf-8") as f:
         products = json.load(f)
 
+    existing_prices = load_existing_prices()
     prices = get_all_prices(products)
 
     rows = []
     for p in products:
         price = prices.get(p["id"])
+        num_id = re.search(r"/products/(\d+)", p["link"])
+        nid = num_id.group(1) if num_id else p["id"]
+        # 크롤링 실패 시 기존 가격 유지
+        if not price:
+            price = existing_prices.get(nid)
         if not price:
             continue
-        num_id = re.search(r"/products/(\d+)", p["link"])
         rows.append({
-            "id": num_id.group(1) if num_id else p["id"],
+            "id": nid,
             "title": p["title"],
             "brand": "샤크닌자",
             "image_link": p["image_link"],
